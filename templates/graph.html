@@ -1,0 +1,156 @@
+<!-- templates/graph.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ cam }} — Crowd Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    :root { --bg:#080B12; --surface:#0D1117; --border:#1C2333; --accent:#3B82F6; }
+    body { background:var(--bg); color:#C9D1D9; font-family:'DM Sans',sans-serif; min-height:100vh; }
+    body::before {
+      content:''; position:fixed; inset:0; pointer-events:none;
+      background-image: linear-gradient(rgba(59,130,246,.03) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(59,130,246,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; }
+    .mono { font-family:'Space Mono',monospace; }
+  </style>
+</head>
+<body>
+  <div class="max-w-6xl mx-auto py-8 px-5 relative z-10">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-xl font-semibold text-white">{{ cam }} — Crowd Analytics</h1>
+        <p class="text-xs text-[#7D8590] mt-1 mono">Historical trend & risk score over time</p>
+      </div>
+      <a href="/" class="text-xs mono text-blue-400 hover:text-blue-300 border border-[#1C2333] hover:border-blue-500/40 px-3 py-1.5 rounded-lg transition">
+        ← Dashboard
+      </a>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="card px-4 py-3">
+        <div class="text-[10px] text-[#7D8590] mono uppercase tracking-wider">Peak Count</div>
+        <div class="text-2xl font-bold mono text-white mt-1" id="stat-peak">—</div>
+      </div>
+      <div class="card px-4 py-3">
+        <div class="text-[10px] text-[#7D8590] mono uppercase tracking-wider">Average Count</div>
+        <div class="text-2xl font-bold mono text-white mt-1" id="stat-avg">—</div>
+      </div>
+      <div class="card px-4 py-3">
+        <div class="text-[10px] text-[#7D8590] mono uppercase tracking-wider">Peak Risk %</div>
+        <div class="text-2xl font-bold mono mt-1" id="stat-risk-peak" style="color:#EF4444">—</div>
+      </div>
+      <div class="card px-4 py-3">
+        <div class="text-[10px] text-[#7D8590] mono uppercase tracking-wider">Data Points</div>
+        <div class="text-2xl font-bold mono text-white mt-1" id="stat-pts">—</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="card p-4 mb-4">
+      <div class="text-xs mono text-[#7D8590] mb-3 uppercase tracking-wider">People Count Over Time</div>
+      <div id="chart-count" style="height:300px;"></div>
+    </div>
+
+    <div class="card p-4">
+      <div class="text-xs mono text-[#7D8590] mb-3 uppercase tracking-wider">Risk Score Over Time (%)</div>
+      <div id="chart-risk" style="height:260px;"></div>
+    </div>
+  </div>
+
+  <script>
+    const times  = {{ times|tojson }};
+    const counts = {{ counts|tojson }};
+    const rtimes = {{ rtimes|tojson }};
+    const rscores= {{ rscores|tojson }};
+
+    const LAYOUT_BASE = {
+      paper_bgcolor: '#0D1117',
+      plot_bgcolor:  '#0D1117',
+      margin: { t:10, r:20, b:50, l:55 },
+      xaxis: {
+        tickfont:  { color:'#7D8590', family:'Space Mono', size:10 },
+        titlefont: { color:'#7D8590', size:11 },
+        gridcolor: '#1C2333', linecolor:'#1C2333',
+        tickangle: -30,
+      },
+      yaxis: {
+        gridcolor: '#1C2333', linecolor:'#1C2333',
+        tickfont:  { color:'#7D8590', family:'Space Mono', size:10 },
+        titlefont: { color:'#7D8590', size:11 },
+        rangemode: 'tozero',
+        zeroline: false,
+      },
+      legend: { font:{ color:'#7D8590', size:10 }, bgcolor:'transparent' },
+      hovermode: 'x unified',
+      hoverlabel: {
+        bgcolor:'#1C2333', bordercolor:'#3B82F6',
+        font: { color:'#E6EDF3', family:'Space Mono', size:11 }
+      },
+    };
+
+    // People count chart
+    Plotly.newPlot('chart-count', [{
+      x: times, y: counts,
+      type: 'scatter', mode: 'lines',
+      name: 'People Count',
+      line: { shape:'spline', color:'#3B82F6', width:2 },
+      fill: 'tozeroy',
+      fillcolor: 'rgba(59,130,246,0.08)',
+    }], {
+      ...LAYOUT_BASE,
+      yaxis: { ...LAYOUT_BASE.yaxis, title:'People', rangemode:'tozero' }
+    }, { responsive:true, displayModeBar:false });
+
+    // Risk score chart with coloured background zones
+    const shapes = [
+      { type:'rect', xref:'paper', yref:'y', x0:0,x1:1, y0:0,  y1:25,
+        fillcolor:'rgba(16,185,129,.05)',   line:{width:0} },
+      { type:'rect', xref:'paper', yref:'y', x0:0,x1:1, y0:25, y1:50,
+        fillcolor:'rgba(245,158,11,.05)',   line:{width:0} },
+      { type:'rect', xref:'paper', yref:'y', x0:0,x1:1, y0:50, y1:75,
+        fillcolor:'rgba(249,115,22,.05)',   line:{width:0} },
+      { type:'rect', xref:'paper', yref:'y', x0:0,x1:1, y0:75, y1:100,
+        fillcolor:'rgba(239,68,68,.07)',    line:{width:0} },
+    ];
+
+    Plotly.newPlot('chart-risk', [{
+      x: rtimes, y: rscores,
+      type: 'scatter', mode: 'lines',
+      name: 'Risk Score %',
+      line: { shape:'spline', color:'#F97316', width:2 },
+      fill: 'tozeroy',
+      fillcolor:'rgba(249,115,22,0.08)',
+    }], {
+      ...LAYOUT_BASE,
+      yaxis: { ...LAYOUT_BASE.yaxis, title:'Risk %', range:[0,100] },
+      shapes,
+      annotations: [
+        { xref:'paper', yref:'y', x:1.01, y:12,  text:'Low',     showarrow:false, font:{color:'#10B981',size:9,family:'Space Mono'}, xanchor:'left' },
+        { xref:'paper', yref:'y', x:1.01, y:37,  text:'Medium',  showarrow:false, font:{color:'#F59E0B',size:9,family:'Space Mono'}, xanchor:'left' },
+        { xref:'paper', yref:'y', x:1.01, y:62,  text:'High',    showarrow:false, font:{color:'#F97316',size:9,family:'Space Mono'}, xanchor:'left' },
+        { xref:'paper', yref:'y', x:1.01, y:87,  text:'Critical',showarrow:false, font:{color:'#EF4444',size:9,family:'Space Mono'}, xanchor:'left' },
+      ],
+      margin: { ...LAYOUT_BASE.margin, r:70 },
+    }, { responsive:true, displayModeBar:false });
+
+    // Summary stats
+    if (counts.length) {
+      document.getElementById('stat-peak').textContent = Math.max(...counts);
+      document.getElementById('stat-avg').textContent  = (counts.reduce((a,b)=>a+b,0)/counts.length).toFixed(1);
+      document.getElementById('stat-pts').textContent  = counts.length;
+    }
+    if (rscores.length) {
+      document.getElementById('stat-risk-peak').textContent = Math.max(...rscores).toFixed(1) + '%';
+    }
+  </script>
+</body>
+</html>
