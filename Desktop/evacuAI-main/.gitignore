@@ -30,3 +30,9 @@ alert_*.jpg
 
 # Backups
 # *.backup
+
+# Conda / system files
+.condarc
+keyring/
+analytics_settings
+sdkbin/
