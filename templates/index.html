@@ -1,0 +1,763 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EvacuAI — Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --col-bg:       #080B12;
+      --col-surface:  #0D1117;
+      --col-border:   #1C2333;
+      --col-accent:   #3B82F6;
+      --col-low:      #10B981;
+      --col-medium:   #F59E0B;
+      --col-high:     #F97316;
+      --col-critical: #EF4444;
+      --font-mono:    'Space Mono', monospace;
+      --font-ui:      'DM Sans', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--col-bg);
+      color: #C9D1D9;
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── BACKGROUND GRID ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(59,130,246,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* ── SCAN LINE ANIMATION ── */
+    @keyframes scan {
+      0%   { top: 0; }
+      100% { top: 100%; }
+    }
+    .scan-line {
+      position: fixed; left: 0; width: 100%; height: 2px; z-index: 1;
+      background: linear-gradient(90deg, transparent, rgba(59,130,246,.3), transparent);
+      animation: scan 8s linear infinite;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(8,11,18,.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--col-border);
+    }
+    .logo-mark {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 14px; font-weight: 700;
+      color: #fff; letter-spacing: -1px;
+    }
+
+    /* ── PULSE RING ── */
+    @keyframes pulse-ring {
+      0%   { transform: scale(1);   opacity: .7; }
+      70%  { transform: scale(1.9); opacity: 0; }
+      100% { transform: scale(1.9); opacity: 0; }
+    }
+    .live-dot { position: relative; display: inline-flex; align-items: center; }
+    .live-dot::before {
+      content: ''; position: absolute;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--col-low); animation: pulse-ring 1.8s ease-out infinite;
+    }
+    .live-dot-inner {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--col-low); position: relative;
+    }
+
+    /* ── STAT CARDS ── */
+    .stat-card {
+      background: var(--col-surface);
+      border: 1px solid var(--col-border);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      position: relative; overflow: hidden;
+    }
+    .stat-card::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--col-accent), transparent);
+      opacity: .3;
+    }
+
+    /* ── CAMERA CARDS ── */
+    .cam-card {
+      background: var(--col-surface);
+      border: 1px solid var(--col-border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: border-color .25s, box-shadow .25s;
+      position: relative;
+    }
+    .cam-card:hover {
+      border-color: rgba(59,130,246,.4);
+      box-shadow: 0 0 30px rgba(59,130,246,.08);
+    }
+    .cam-card.level-Critical {
+      border-color: rgba(239,68,68,.5);
+      animation: critical-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes critical-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.0); }
+      50%       { box-shadow: 0 0 20px 4px rgba(239,68,68,.25); }
+    }
+    .cam-card.level-High {
+      border-color: rgba(249,115,22,.4);
+    }
+
+    /* ── RISK GAUGE ── */
+    .gauge-wrap { position: relative; width: 56px; height: 56px; }
+    .gauge-svg  { transform: rotate(-90deg); }
+    .gauge-track { stroke: #1C2333; }
+    .gauge-fill  { transition: stroke-dasharray .6s ease, stroke .6s ease; }
+
+    /* ── METRIC BAR ── */
+    .metric-bar-bg {
+      height: 4px; border-radius: 9px; background: rgba(255,255,255,.06);
+      overflow: hidden;
+    }
+    .metric-bar-fill {
+      height: 100%; border-radius: 9px;
+      transition: width .5s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── RISK BADGE ── */
+    .risk-badge {
+      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+      letter-spacing: .05em; padding: 2px 8px; border-radius: 99px;
+    }
+    .risk-badge.Low      { background:rgba(16,185,129,.12); color:#34D399; border:1px solid rgba(16,185,129,.25); }
+    .risk-badge.Medium   { background:rgba(245,158,11,.12); color:#FCD34D; border:1px solid rgba(245,158,11,.25); }
+    .risk-badge.High     { background:rgba(249,115,22,.12); color:#FB923C; border:1px solid rgba(249,115,22,.25); }
+    .risk-badge.Critical { background:rgba(239,68,68,.16);  color:#FCA5A5; border:1px solid rgba(239,68,68,.35);  }
+
+    /* ── TOAST NOTIFICATIONS ── */
+    #toast-container {
+      position: fixed; top: 72px; right: 20px; z-index: 999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast {
+      max-width: 320px; padding: 12px 16px; border-radius: 12px;
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 12px; font-family: var(--font-ui);
+      backdrop-filter: blur(16px);
+      animation: toast-in .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(120px) scale(.9); }
+      to   { opacity: 1; transform: translateX(0)   scale(1);   }
+    }
+    .toast-critical { background:rgba(127,29,29,.9); border:1px solid rgba(239,68,68,.5); color:#FCA5A5; }
+    .toast-high     { background:rgba(120,53,15,.9); border:1px solid rgba(249,115,22,.5); color:#FED7AA; }
+    .toast-incident { background:rgba(30,58,138,.9); border:1px solid rgba(59,130,246,.5);  color:#BFDBFE; }
+
+    /* ── CONTROLS PANEL ── */
+    .ctrl-panel {
+      background: var(--col-surface);
+      border: 1px solid var(--col-border);
+      border-radius: 16px; padding: 1.25rem;
+    }
+    .ctrl-input {
+      background: rgba(255,255,255,.04); border: 1px solid var(--col-border);
+      border-radius: 8px; color: #E6EDF3; font-family: var(--font-mono);
+      font-size: 11px; padding: 6px 10px; width: 100%;
+      transition: border-color .2s;
+    }
+    .ctrl-input:focus { outline: none; border-color: var(--col-accent); }
+    .ctrl-label { font-size: 10px; color: #7D8590; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
+    .btn-primary {
+      background: var(--col-accent); color: #fff; font-size: 12px;
+      font-weight: 600; padding: 7px 16px; border-radius: 8px;
+      border: none; cursor: pointer; transition: background .2s;
+    }
+    .btn-primary:hover { background: #2563EB; }
+    .btn-danger  { background: rgba(239,68,68,.15); color: #FCA5A5; border: 1px solid rgba(239,68,68,.3); }
+    .btn-danger:hover  { background: rgba(239,68,68,.3); }
+    .btn-ghost   { background: rgba(255,255,255,.05); color: #C9D1D9; border: 1px solid var(--col-border); }
+    .btn-ghost:hover   { background: rgba(255,255,255,.10); }
+    .btn-sm { font-size: 11px; padding: 5px 12px; border-radius: 7px; font-weight: 600; cursor: pointer; transition: all .2s; }
+
+    /* ── ORIENTATION TOGGLE ── */
+    .orient-btn {
+      width: 32px; height: 32px; border-radius: 8px; display: flex;
+      align-items: center; justify-content: center;
+      background: rgba(255,255,255,.05); border: 1px solid var(--col-border);
+      cursor: pointer; font-size: 14px; transition: all .2s;
+    }
+    .orient-btn.active { background: rgba(59,130,246,.2); border-color: var(--col-accent); }
+    .orient-btn:hover  { background: rgba(255,255,255,.10); }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--col-bg); }
+    ::-webkit-scrollbar-thumb { background: #30363D; border-radius: 9px; }
+
+    /* ── TABLE ── */
+    .data-table th { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; color: #7D8590; text-transform: uppercase; }
+    .data-table td { font-size: 12px; }
+
+    /* ── SECTION HEADING ── */
+    .section-label {
+      font-family: var(--font-mono); font-size: 10px; color: #7D8590;
+      letter-spacing: .12em; text-transform: uppercase;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-label::before {
+      content: ''; display: inline-block; width: 16px; height: 1px;
+      background: var(--col-accent); opacity: .5;
+    }
+  </style>
+</head>
+<body>
+  <div class="scan-line"></div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toast-container"></div>
+
+  <!-- CRITICAL ALARM OVERLAY -->
+  <div id="alarm-overlay"
+    style="display:none;position:fixed;inset:0;z-index:200;pointer-events:none;
+           background:rgba(239,68,68,.06);border:3px solid rgba(239,68,68,.4);
+           animation:critical-pulse 1.5s ease-in-out infinite;">
+  </div>
+
+  <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+  <header>
+    <div class="max-w-screen-2xl mx-auto px-5 py-3 flex items-center gap-4">
+      <div class="logo-mark">SG</div>
+      <div class="flex-1">
+        <div class="text-sm font-semibold text-white">EvacuAI</div>
+        <div class="text-[10px] text-[#7D8590] font-mono">Real-time crowd intelligence &amp; stampede prevention</div>
+      </div>
+      <!-- System status -->
+      <div class="hidden md:flex items-center gap-5">
+        <div class="flex items-center gap-6">
+          {% for cam, status in health.items() %}
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-[9px] font-mono text-[#7D8590]">{{ cam }}</span>
+            <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded
+              {% if status.status == 'ok' %}text-emerald-400 bg-emerald-950/40
+              {% elif status.status == 'offline' %}text-red-400 bg-red-950/40
+              {% else %}text-amber-400 bg-amber-950/40{% endif %}">
+              {{ status.status.upper() }}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="h-6 w-px bg-[#1C2333]"></div>
+        <div class="live-dot gap-2 flex items-center">
+          <div class="live-dot-inner"></div>
+          <span class="text-[11px] font-mono text-emerald-400 ml-2.5">LIVE</span>
+        </div>
+        <a href="{{ url_for('incidents') }}"
+           class="text-[11px] font-mono text-blue-400 hover:text-blue-300 border border-[#1C2333] hover:border-blue-500/40 px-3 py-1.5 rounded-lg transition">
+          INCIDENT LOG
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-screen-2xl mx-auto px-5 py-6 relative z-10 space-y-6">
+
+    <!-- ── GLOBAL STATS BAR ──────────────────────────────────────────────── -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div class="stat-card">
+        <div class="ctrl-label mb-1">Total Entries</div>
+        <div class="text-2xl font-bold font-mono text-white" id="g-entry-count">0</div>
+        <div class="text-[10px] text-[#7D8590] mt-0.5">since session start</div>
+      </div>
+      <div class="stat-card">
+        <div class="ctrl-label mb-1">Active Cameras</div>
+        <div class="text-2xl font-bold font-mono text-white" id="g-active-cams">—</div>
+        <div class="text-[10px] text-[#7D8590] mt-0.5">online feeds</div>
+      </div>
+      <div class="stat-card">
+        <div class="ctrl-label mb-1">Highest Risk</div>
+        <div class="text-2xl font-bold font-mono" id="g-highest-risk" style="color:var(--col-low)">Low</div>
+        <div class="text-[10px] text-[#7D8590] mt-0.5">across all zones</div>
+      </div>
+      <div class="stat-card">
+        <div class="ctrl-label mb-1">Incidents Today</div>
+        <div class="text-2xl font-bold font-mono text-white" id="g-incidents">{{ incidents|length if incidents else 0 }}</div>
+        <div class="text-[10px] text-[#7D8590] mt-0.5">logged &amp; alerted</div>
+      </div>
+      <div class="stat-card">
+        <div class="ctrl-label mb-1">System Time</div>
+        <div class="text-xl font-bold font-mono text-white" id="g-clock">—</div>
+        <div class="text-[10px] text-[#7D8590] mt-0.5">local time</div>
+      </div>
+    </div>
+
+    <!-- ── CONTROLS ──────────────────────────────────────────────────────── -->
+    <form method="POST">
+      <div class="ctrl-panel">
+        <div class="section-label mb-4">System Configuration</div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+          <!-- WiFi Camera -->
+          <div>
+            <div class="ctrl-label">Wi-Fi Camera (Cam1) — IP Webcam URL</div>
+            <input type="text" name="cam1_ip" value="{{ cam1_ip }}"
+              placeholder="192.168.1.102:8080/video"
+              class="ctrl-input mb-1">
+            <p class="text-[10px] text-[#7D8590]">
+              Open <strong>IP Webcam</strong> app on your phone → Start server → paste IP here.
+              Just the IP auto-connects to :8080/video
+            </p>
+
+            <!-- Orientation controls for Cam1 -->
+            <div class="mt-3">
+              <div class="ctrl-label mb-2">Cam1 Orientation</div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button type="button" class="orient-btn" id="btn-flip-h" onclick="toggleOrient('flip_h')" title="Flip Horizontal">↔</button>
+                <button type="button" class="orient-btn" id="btn-flip-v" onclick="toggleOrient('flip_v')" title="Flip Vertical">↕</button>
+                <input type="hidden" name="flip_h_Cam1" id="inp-flip-h" value="{{ 'true' if cam_orientation['Cam1']['flip_h'] else 'false' }}">
+                <input type="hidden" name="flip_v_Cam1" id="inp-flip-v" value="{{ 'true' if cam_orientation['Cam1']['flip_v'] else 'false' }}">
+                <select name="rotate_Cam1" class="ctrl-input" style="width:auto;padding-right:24px">
+                  <option value="0"   {% if cam_orientation['Cam1']['rotate']==0   %}selected{% endif %}>No rotation</option>
+                  <option value="90"  {% if cam_orientation['Cam1']['rotate']==90  %}selected{% endif %}>90° CW</option>
+                  <option value="180" {% if cam_orientation['Cam1']['rotate']==180 %}selected{% endif %}>180°</option>
+                  <option value="270" {% if cam_orientation['Cam1']['rotate']==270 %}selected{% endif %}>90° CCW</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Density thresholds -->
+          <div>
+            <div class="ctrl-label">Density Thresholds (people/m²)</div>
+            <div class="grid grid-cols-2 gap-3 mt-2">
+              <div>
+                <div class="ctrl-label">Bottleneck Critical</div>
+                <input type="number" step="0.1" name="bottleneck_density_critical"
+                  value="{{ bottleneck_density_critical }}" class="ctrl-input">
+              </div>
+              <div>
+                <div class="ctrl-label">Open Area Critical</div>
+                <input type="number" step="0.1" name="open_density_critical"
+                  value="{{ open_density_critical }}" class="ctrl-input">
+              </div>
+            </div>
+            <p class="text-[10px] text-[#7D8590] mt-2">
+              <strong class="text-[#C9D1D9]">Demo tip:</strong> Cam1 ROI = {{ roi_areas['Cam1'] }}m².
+              4 people in 1m² = 4 p/m² → set bottleneck critical ≤ 3.5 to trigger.
+            </p>
+          </div>
+
+          <!-- ROI Areas -->
+          <div>
+            <div class="ctrl-label">ROI Real-World Area (m²)</div>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              {% for cam, area in roi_areas.items() if cam != 'EntryCam' %}
+              <div>
+                <div class="ctrl-label">{{ cam }}</div>
+                <input type="number" step="0.5" name="roi_area_{{ cam }}"
+                  value="{{ area }}" class="ctrl-input">
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end mt-4">
+          <button type="submit" class="btn-primary btn-sm">Apply Configuration</button>
+        </div>
+      </div>
+    </form>
+
+    <!-- ── CAMERA GRID ────────────────────────────────────────────────────── -->
+    <div>
+      <div class="section-label mb-4">Live Camera Feeds</div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        {% for cam, src in cameras.items() if cam != 'EntryCam' %}
+        {% set m = metrics[cam] if metrics and cam in metrics else {} %}
+        {% set level = m.risk_level if m else 'Low' %}
+        <div class="cam-card level-{{ level }}" id="card-{{ cam }}">
+
+          <!-- Card header -->
+          <div class="flex items-center justify-between px-4 pt-4 pb-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-white">{{ cam }}</span>
+                <span class="risk-badge {{ level }}" id="badge-{{ cam }}">{{ level }}</span>
+              </div>
+              <div class="text-[10px] text-[#7D8590] mt-0.5 font-mono">
+                {% if cam == 'Cam1' %}Wi-Fi Phone Camera
+                {% elif cam == 'Cam3' %}Laptop Webcam
+                {% elif src == 0 or src == '0' %}Local Camera
+                {% else %}Video Feed — {{ src.split('/')[-1] }}{% endif %}
+              </div>
+            </div>
+
+            <!-- Circular gauge -->
+            <div class="gauge-wrap" title="Risk score">
+              <svg class="gauge-svg" width="56" height="56" viewBox="0 0 56 56">
+                <circle class="gauge-track" cx="28" cy="28" r="22" fill="none" stroke-width="4"/>
+                <circle class="gauge-fill" id="gauge-{{ cam }}" cx="28" cy="28" r="22"
+                  fill="none" stroke-width="4"
+                  stroke="{{ '#10B981' if level=='Low' else '#F59E0B' if level=='Medium' else '#F97316' if level=='High' else '#EF4444' }}"
+                  stroke-dasharray="{{ ((m.risk_score if m else 0) * 138.23)|round(1) }} 138.23"
+                  stroke-linecap="round"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column">
+                <span class="font-mono text-[11px] font-bold text-white" id="gauge-pct-{{ cam }}">
+                  {{ ((m.risk_score if m else 0) * 100)|round(0)|int }}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video -->
+          <div class="border-t border-[#1C2333] bg-black overflow-hidden" style="aspect-ratio:4/3">
+            <img src="{{ url_for('video_feed', camera_name=cam) }}"
+                 class="w-full h-full object-cover" alt="{{ cam }} feed"
+                 onerror="this.style.opacity='0.3'">
+          </div>
+
+          <!-- Metrics -->
+          <div class="px-4 py-3 space-y-2" data-cam="{{ cam }}">
+
+            <!-- Density -->
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="text-[#7D8590]">Density</span>
+              <span class="font-mono font-semibold text-white" id="density-{{ cam }}">
+                {{ (m.density if m else 0)|round(2) }} p/m²
+              </span>
+            </div>
+            <div class="metric-bar-bg">
+              <div class="metric-bar-fill" id="bar-density-{{ cam }}"
+                style="width:{{ [((m.density if m else 0)/5*100),100]|min|round(0)|int }}%;
+                       background: {{ '#10B981' if level=='Low' else '#F59E0B' if level=='Medium' else '#F97316' if level=='High' else '#EF4444' }}">
+              </div>
+            </div>
+
+            <!-- Motion -->
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="text-[#7D8590]">Motion index</span>
+              <span class="font-mono font-semibold text-white" id="motion-{{ cam }}">
+                {{ ((m.motion if m else 0)*100)|round(1) }}%
+              </span>
+            </div>
+            <div class="metric-bar-bg">
+              <div class="metric-bar-fill" id="bar-motion-{{ cam }}"
+                style="width:{{ ((m.motion if m else 0)*100)|round(0)|int }}%; background:#60A5FA">
+              </div>
+            </div>
+
+            <!-- Turbulence & Flow row -->
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <div class="ctrl-label">Turbulence</div>
+                <div class="font-mono text-white text-xs font-semibold" id="turb-{{ cam }}">
+                  {{ ((m.turbulence if m else 0)*100)|round(0)|int }}%
+                </div>
+                <div class="metric-bar-bg mt-1">
+                  <div class="metric-bar-fill" id="bar-turb-{{ cam }}"
+                    style="width:{{ ((m.turbulence if m else 0)*100)|round(0)|int }}%; background:#A78BFA">
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="ctrl-label">Flow Conflict</div>
+                <div class="font-mono text-xs font-semibold" id="flow-{{ cam }}"
+                  style="color:{{ '#EF4444' if (m.flow_conflict if m else 0)>=0.5 else '#10B981' }}">
+                  {{ 'DETECTED' if (m.flow_conflict if m else 0)>=0.5 else 'Stable' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Count + FPS row -->
+            <div class="flex items-center justify-between pt-1 border-t border-[#1C2333] text-[10px] font-mono text-[#7D8590]">
+              <span>People: <span class="text-white" id="count-{{ cam }}">{{ m.count if m else 0 }}</span></span>
+              <span>FPS: <span class="text-white" id="fps-{{ cam }}">{{ m.fps if m else 0 }}</span></span>
+              <span>Accel: <span class="text-amber-400" id="accel-{{ cam }}">
+                {{ ((m.acceleration if m else 0)*100)|round(0)|int }}%
+              </span></span>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="px-4 pb-4 flex items-center justify-between gap-2 border-t border-[#1C2333] pt-3">
+            <a href="{{ url_for('graph', camera_name=cam) }}" target="_blank"
+               class="btn-sm btn-ghost">📈 Trend</a>
+            <a href="{{ url_for('snapshot', camera_name=cam) }}" target="_blank"
+               class="btn-sm btn-ghost">📸 Snapshot</a>
+            <a href="{{ url_for('force_alert', camera_name=cam) }}"
+               class="btn-sm btn-danger">⚡ Force Critical</a>
+            <a href="{{ url_for('reset_alert', camera_name=cam) }}"
+               class="btn-sm btn-ghost">↺ Reset</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- ── ENTRY CAMERA ────────────────────────────────────────────────────── -->
+    <div class="ctrl-panel">
+      <div class="section-label mb-4">Entry Camera — Ingress Monitoring</div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+        <div class="md:col-span-2 overflow-hidden rounded-xl border border-[#1C2333] bg-black" style="aspect-ratio:4/3">
+          <img src="{{ url_for('video_feed', camera_name='EntryCam') }}"
+               class="w-full h-full object-cover" alt="Entry camera feed">
+        </div>
+        <div class="space-y-4">
+          <div class="stat-card">
+            <div class="ctrl-label">Total Entries Counted</div>
+            <div class="text-4xl font-bold font-mono text-blue-400 mt-1" id="entry-count">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="ctrl-label">Detection Method</div>
+            <div class="text-xs text-white mt-1">YOLOv8 + Line Crossing</div>
+            <div class="text-[10px] text-[#7D8590] mt-1">Directional flow detection on horizontal threshold line</div>
+          </div>
+          <div class="stat-card">
+            <div class="ctrl-label">Classroom Demo Mode</div>
+            <div class="text-xs text-[#C9D1D9] mt-1 leading-relaxed">
+              Have 4 people squeeze into Cam1's <strong>highlighted ROI box</strong>.
+              Density → ~3–4 p/m² triggers <span style="color:var(--col-critical)">Critical</span> alert automatically.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RECENT INCIDENTS ────────────────────────────────────────────────── -->
+    <div id="incidents-section">
+      <div class="flex items-center justify-between mb-3">
+        <div class="section-label">Recent Incidents</div>
+        <a href="{{ url_for('incidents') }}" class="text-[11px] font-mono text-blue-400 hover:text-blue-300">View all →</a>
+      </div>
+      <div class="ctrl-panel p-0 overflow-hidden">
+        <table class="data-table w-full">
+          <thead>
+            <tr class="border-b border-[#1C2333]">
+              <th class="px-4 py-2.5 text-left">Time (UTC)</th>
+              <th class="px-4 py-2.5 text-left">Camera</th>
+              <th class="px-4 py-2.5 text-left">Risk</th>
+              <th class="px-4 py-2.5 text-left">Density</th>
+              <th class="px-4 py-2.5 text-left">Turbulence</th>
+              <th class="px-4 py-2.5 text-left">Flow</th>
+            </tr>
+          </thead>
+          <tbody id="incident-tbody">
+            {% if incidents %}
+              {% for inc in incidents|reverse %}
+              <tr class="border-t border-[#1C2333] hover:bg-white/[.02]">
+                <td class="px-4 py-2.5 font-mono text-[10px] text-[#7D8590]">{{ inc.timestamp }}</td>
+                <td class="px-4 py-2.5 text-white">{{ inc.camera }}</td>
+                <td class="px-4 py-2.5"><span class="risk-badge {{ inc.risk_level }}">{{ inc.risk_level }}</span></td>
+                <td class="px-4 py-2.5 font-mono text-[#C9D1D9]">{{ "%.2f"|format(inc.density) }} p/m²</td>
+                <td class="px-4 py-2.5 font-mono text-[#C9D1D9]">{{ "%.0f"|format((inc.turbulence if inc.turbulence else 0)*100) }}%</td>
+                <td class="px-4 py-2.5 font-mono" style="color:{{ '#EF4444' if inc.flow_conflict and inc.flow_conflict>=0.5 else '#10B981' }}">
+                  {{ 'Conflict' if inc.flow_conflict and inc.flow_conflict>=0.5 else 'Stable' }}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+            <tr>
+              <td colspan="6" class="px-4 py-8 text-center text-[#7D8590] text-sm">No incidents recorded yet.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── SCRIPTS ────────────────────────────────────────────────────────── -->
+  <script>
+    // ─── Clock ─────────────────────────────────────────────────────────────
+    function updateClock() {
+      const el = document.getElementById('g-clock');
+      if (el) el.textContent = new Date().toLocaleTimeString('en-GB');
+    }
+    setInterval(updateClock, 1000); updateClock();
+
+    // ─── Entry count ────────────────────────────────────────────────────────
+    setInterval(() => {
+      fetch('/entry_count').then(r=>r.json()).then(d => {
+        const v = d.count;
+        document.getElementById('entry-count').textContent = v;
+        document.getElementById('g-entry-count').textContent = v;
+      }).catch(()=>{});
+    }, 2000);
+
+    // ─── Risk colour helpers ────────────────────────────────────────────────
+    const riskCol = {
+      Low:'#10B981', Medium:'#F59E0B', High:'#F97316', Critical:'#EF4444'
+    };
+    const CIRC = 2 * Math.PI * 22; // 138.23
+
+    let criticalCams = new Set();
+
+    // ─── Live metrics polling ───────────────────────────────────────────────
+    setInterval(() => {
+      fetch('/metrics').then(r=>r.json()).then(data => {
+        let highest = 'Low';
+        const ord = {Low:0, Medium:1, High:2, Critical:3};
+        let activeCams = 0;
+
+        Object.keys(data).forEach(cam => {
+          const m   = data[cam];
+          const lvl = m.risk_level || 'Low';
+          if (ord[lvl] > ord[highest]) highest = lvl;
+          activeCams++;
+
+          // Badge
+          const badge = document.getElementById(`badge-${cam}`);
+          if (badge) { badge.textContent = lvl; badge.className = `risk-badge ${lvl}`; }
+
+          // Card border class
+          const card = document.getElementById(`card-${cam}`);
+          if (card) {
+            card.className = card.className.replace(/level-\w+/, '') + ` level-${lvl}`;
+          }
+
+          // Gauge
+          const gc  = document.getElementById(`gauge-${cam}`);
+          const gp  = document.getElementById(`gauge-pct-${cam}`);
+          const col = riskCol[lvl] || '#10B981';
+          if (gc) {
+            const dash = (m.risk_score * CIRC).toFixed(1);
+            gc.setAttribute('stroke-dasharray', `${dash} ${CIRC}`);
+            gc.setAttribute('stroke', col);
+          }
+          if (gp) gp.textContent = Math.round(m.risk_score * 100) + '%';
+
+          // Density
+          const d  = m.density || 0;
+          const de = document.getElementById(`density-${cam}`);
+          const db = document.getElementById(`bar-density-${cam}`);
+          if (de) de.textContent = d.toFixed(2) + ' p/m²';
+          if (db) {
+            const pct = Math.min(100, d / 5 * 100);
+            db.style.width = pct + '%';
+            db.style.background = col;
+          }
+
+          // Motion
+          const mo  = (m.motion || 0) * 100;
+          const moe = document.getElementById(`motion-${cam}`);
+          const mob = document.getElementById(`bar-motion-${cam}`);
+          if (moe) moe.textContent = mo.toFixed(1) + '%';
+          if (mob) mob.style.width = mo.toFixed(0) + '%';
+
+          // Turbulence
+          const tu  = (m.turbulence || 0) * 100;
+          const tue = document.getElementById(`turb-${cam}`);
+          const tub = document.getElementById(`bar-turb-${cam}`);
+          if (tue) tue.textContent = tu.toFixed(0) + '%';
+          if (tub) tub.style.width = tu.toFixed(0) + '%';
+
+          // Flow
+          const fl = m.flow_conflict || 0;
+          const fle = document.getElementById(`flow-${cam}`);
+          if (fle) {
+            fle.textContent = fl >= 0.5 ? 'DETECTED' : 'Stable';
+            fle.style.color = fl >= 0.5 ? '#EF4444' : '#10B981';
+          }
+
+          // Count / FPS / Accel
+          const ce = document.getElementById(`count-${cam}`);
+          const fe = document.getElementById(`fps-${cam}`);
+          const ae = document.getElementById(`accel-${cam}`);
+          if (ce) ce.textContent = m.count || 0;
+          if (fe) fe.textContent = (m.fps || 0).toFixed(1);
+          if (ae) ae.textContent = ((m.acceleration||0)*100).toFixed(0) + '%';
+
+          // Critical detection
+          if (lvl === 'Critical' && !criticalCams.has(cam)) {
+            criticalCams.add(cam);
+            showToast(`🚨 CRITICAL: ${cam}`, `Density ${d.toFixed(2)} p/m² · Turbulence ${((m.turbulence||0)*100).toFixed(0)}%`, 'critical');
+          } else if (lvl !== 'Critical') {
+            criticalCams.delete(cam);
+          }
+        });
+
+        // Global stats
+        const hEl = document.getElementById('g-highest-risk');
+        if (hEl) { hEl.textContent = highest; hEl.style.color = riskCol[highest]; }
+        const acEl = document.getElementById('g-active-cams');
+        if (acEl) acEl.textContent = activeCams;
+
+        // Alarm overlay
+        const overlay = document.getElementById('alarm-overlay');
+        if (overlay) overlay.style.display = highest === 'Critical' ? 'block' : 'none';
+
+      }).catch(()=>{});
+    }, 1500);
+
+    // ─── Toast ──────────────────────────────────────────────────────────────
+    function showToast(title, body, type='incident') {
+      const tc  = document.getElementById('toast-container');
+      const div = document.createElement('div');
+      div.className = `toast toast-${type}`;
+      div.innerHTML = `
+        <div style="font-size:20px;flex-shrink:0">
+          ${type==='critical'?'🚨':type==='high'?'⚠️':'ℹ️'}
+        </div>
+        <div>
+          <div style="font-weight:700;margin-bottom:2px">${title}</div>
+          <div style="opacity:.8;font-size:11px">${body}</div>
+        </div>`;
+      tc.appendChild(div);
+      setTimeout(() => div.remove(), 6000);
+    }
+
+    // ─── SSE notifications ──────────────────────────────────────────────────
+    if (typeof EventSource !== 'undefined') {
+      const es = new EventSource('/sse');
+      es.onmessage = (e) => {
+        const d = e.data;
+        if (d.startsWith('incident:')) {
+          const parts  = d.split(':');
+          const cam    = parts[1]; const lvl = parts[2];
+          const incEl  = document.getElementById('g-incidents');
+          if (incEl) incEl.textContent = parseInt(incEl.textContent||0) + 1;
+          if (lvl === 'High')
+            showToast(`⚠️ HIGH RISK: ${cam}`, 'Incident logged', 'high');
+        }
+      };
+    }
+
+    // ─── Orientation toggle buttons ─────────────────────────────────────────
+    function toggleOrient(which) {
+      const inp = document.getElementById(`inp-${which}`);
+      const btn = document.getElementById(`btn-${which}`);
+      if (!inp) return;
+      const newVal = inp.value === 'true' ? 'false' : 'true';
+      inp.value = newVal;
+      btn.classList.toggle('active', newVal === 'true');
+    }
+    // Init button states
+    document.addEventListener('DOMContentLoaded', () => {
+      ['flip-h','flip-v'].forEach(k => {
+        const inp = document.getElementById(`inp-${k}`);
+        const btn = document.getElementById(`btn-${k}`);
+        if (inp && btn) btn.classList.toggle('active', inp.value === 'true');
+      });
+    });
+  </script>
+</body>
+</html>

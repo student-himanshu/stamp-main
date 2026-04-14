@@ -1,0 +1,18 @@
+# StampedeGuard Pro — Python dependencies
+
+# Web framework
+flask>=2.3.0
+
+# Computer vision & detection
+opencv-python>=4.8.0
+numpy>=1.24.0
+ultralytics>=8.0.0          # YOLOv8 — includes torch as a dependency
+
+# Alerting (optional — leave Twilio env vars blank to run in dry-run mode)
+twilio>=9.0.0
+
+# Config
+python-dotenv>=1.0.0
+
+# Production server (for Heroku / deployment)
+gunicorn>=21.2.0

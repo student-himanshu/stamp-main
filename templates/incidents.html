@@ -1,0 +1,193 @@
+<!-- templates/incidents.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Incident Log — StampedeGuard Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --bg:#080B12; --surface:#0D1117; --border:#1C2333; }
+    body { background:var(--bg); color:#C9D1D9; font-family:'DM Sans',sans-serif; }
+    body::before {
+      content:''; position:fixed; inset:0; pointer-events:none;
+      background-image: linear-gradient(rgba(59,130,246,.03) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(59,130,246,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; }
+    .mono { font-family:'Space Mono',monospace; }
+    .risk-badge {
+      font-family:'Space Mono',monospace; font-size:10px; font-weight:700;
+      letter-spacing:.05em; padding:2px 8px; border-radius:99px;
+    }
+    .risk-badge.Low      { background:rgba(16,185,129,.12); color:#34D399; border:1px solid rgba(16,185,129,.25); }
+    .risk-badge.Medium   { background:rgba(245,158,11,.12); color:#FCD34D; border:1px solid rgba(245,158,11,.25); }
+    .risk-badge.High     { background:rgba(249,115,22,.12); color:#FB923C; border:1px solid rgba(249,115,22,.25); }
+    .risk-badge.Critical { background:rgba(239,68,68,.16);  color:#FCA5A5; border:1px solid rgba(239,68,68,.35);  }
+    .data-table th { font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.08em; color:#7D8590; text-transform:uppercase; }
+    .data-table td { font-size:12px; }
+    .data-table tr:hover { background:rgba(255,255,255,.018); }
+
+    /* Snapshot modal */
+    #snap-modal {
+      display:none; position:fixed; inset:0; z-index:999;
+      background:rgba(0,0,0,.85); backdrop-filter:blur(8px);
+      align-items:center; justify-content:center;
+    }
+    #snap-modal.open { display:flex; }
+    #snap-img { max-width:90vw; max-height:85vh; border-radius:12px; border:1px solid #1C2333; }
+
+    ::-webkit-scrollbar { width:6px; }
+    ::-webkit-scrollbar-track { background:var(--bg); }
+    ::-webkit-scrollbar-thumb { background:#30363D; border-radius:9px; }
+  </style>
+</head>
+<body>
+  <!-- Snapshot modal -->
+  <div id="snap-modal" onclick="closeSnap()">
+    <img id="snap-img" src="" alt="Incident snapshot">
+  </div>
+
+  <div class="max-w-7xl mx-auto py-8 px-5 relative z-10">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-xl font-semibold text-white">Incident Log</h1>
+        <p class="text-xs text-[#7D8590] mt-1 mono">All High and Critical risk events — reverse chronological</p>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="exportCSV()" class="text-xs mono text-[#C9D1D9] border border-[#1C2333] hover:border-blue-500/40 px-3 py-1.5 rounded-lg transition">
+          ↓ Export CSV
+        </button>
+        <a href="/" class="text-xs mono text-blue-400 hover:text-blue-300 border border-[#1C2333] hover:border-blue-500/40 px-3 py-1.5 rounded-lg transition">
+          ← Dashboard
+        </a>
+      </div>
+    </div>
+
+    {% if incidents %}
+    <!-- Summary stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      {% set critical_count = incidents|selectattr('risk_level','eq','Critical')|list|length %}
+      {% set high_count = incidents|selectattr('risk_level','eq','High')|list|length %}
+      <div class="card px-4 py-3">
+        <div class="text-[10px] mono uppercase tracking-wider text-[#7D8590]">Total Events</div>
+        <div class="text-2xl font-bold mono text-white mt-1">{{ incidents|length }}</div>
+      </div>
+      <div class="card px-4 py-3">
+        <div class="text-[10px] mono uppercase tracking-wider text-[#7D8590]">Critical</div>
+        <div class="text-2xl font-bold mono mt-1" style="color:#EF4444">{{ critical_count }}</div>
+      </div>
+      <div class="card px-4 py-3">
+        <div class="text-[10px] mono uppercase tracking-wider text-[#7D8590]">High</div>
+        <div class="text-2xl font-bold mono mt-1" style="color:#F97316">{{ high_count }}</div>
+      </div>
+      <div class="card px-4 py-3">
+        <div class="text-[10px] mono uppercase tracking-wider text-[#7D8590]">Cameras Involved</div>
+        <div class="text-2xl font-bold mono text-white mt-1">
+          {{ incidents|map(attribute='camera')|unique|list|length }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="data-table w-full" id="inc-table">
+          <thead>
+            <tr class="border-b border-[#1C2333]">
+              <th class="px-4 py-3 text-left">#</th>
+              <th class="px-4 py-3 text-left">Time (UTC)</th>
+              <th class="px-4 py-3 text-left">Camera</th>
+              <th class="px-4 py-3 text-left">Risk</th>
+              <th class="px-4 py-3 text-left">Score</th>
+              <th class="px-4 py-3 text-left">Density</th>
+              <th class="px-4 py-3 text-left">Motion</th>
+              <th class="px-4 py-3 text-left">Turbulence</th>
+              <th class="px-4 py-3 text-left">Flow</th>
+              <th class="px-4 py-3 text-left">Snapshot</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inc in incidents|reverse %}
+            <tr class="border-t border-[#1C2333]" data-row="{{ loop.index }}">
+              <td class="px-4 py-2.5 mono text-[10px] text-[#7D8590]">{{ loop.index }}</td>
+              <td class="px-4 py-2.5 mono text-[10px] text-[#7D8590]">{{ inc.timestamp }}</td>
+              <td class="px-4 py-2.5 text-white font-semibold">{{ inc.camera }}</td>
+              <td class="px-4 py-2.5">
+                <span class="risk-badge {{ inc.risk_level }}">{{ inc.risk_level }}</span>
+              </td>
+              <td class="px-4 py-2.5 mono text-[#C9D1D9]">{{ "%.1f"|format(inc.risk_score * 100) }}%</td>
+              <td class="px-4 py-2.5 mono text-[#C9D1D9]">{{ "%.2f"|format(inc.density) }} p/m²</td>
+              <td class="px-4 py-2.5 mono text-[#C9D1D9]">{{ "%.1f"|format((inc.motion or 0) * 100) }}%</td>
+              <td class="px-4 py-2.5 mono text-[#C9D1D9]">{{ "%.1f"|format((inc.turbulence or 0) * 100) }}%</td>
+              <td class="px-4 py-2.5 mono" style="color:{{ '#EF4444' if inc.flow_conflict and inc.flow_conflict>=0.5 else '#10B981' }}">
+                {{ 'Conflict' if inc.flow_conflict and inc.flow_conflict>=0.5 else 'Stable' }}
+              </td>
+              <td class="px-4 py-2.5">
+                {% if inc.snapshot %}
+                <button onclick="showSnap('data:image/jpeg;base64,{{ inc.snapshot }}')"
+                  class="text-[10px] mono text-blue-400 hover:text-blue-300 border border-[#1C2333] hover:border-blue-500/40 px-2 py-1 rounded transition">
+                  📷 View
+                </button>
+                {% else %}
+                <span class="text-[10px] text-[#7D8590] mono">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="card py-20 text-center">
+      <div class="text-5xl mb-4">✅</div>
+      <div class="text-lg font-semibold text-white">No incidents recorded</div>
+      <div class="text-sm text-[#7D8590] mt-2">The system has not detected any High or Critical risk events yet.</div>
+      <a href="/" class="inline-block mt-6 text-sm mono text-blue-400 hover:text-blue-300">← Back to dashboard</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    function showSnap(src) {
+      document.getElementById('snap-img').src = src;
+      document.getElementById('snap-modal').classList.add('open');
+    }
+    function closeSnap() {
+      document.getElementById('snap-modal').classList.remove('open');
+    }
+    document.addEventListener('keydown', e => { if(e.key==='Escape') closeSnap(); });
+
+    function exportCSV() {
+      const rows = [['#','Timestamp','Camera','Risk','Score','Density','Motion','Turbulence','Flow']];
+      document.querySelectorAll('#inc-table tbody tr').forEach(tr => {
+        const cells = tr.querySelectorAll('td');
+        if (cells.length >= 9) {
+          rows.push([
+            cells[0].textContent.trim(),
+            cells[1].textContent.trim(),
+            cells[2].textContent.trim(),
+            cells[3].textContent.trim(),
+            cells[4].textContent.trim(),
+            cells[5].textContent.trim(),
+            cells[6].textContent.trim(),
+            cells[7].textContent.trim(),
+            cells[8].textContent.trim(),
+          ]);
+        }
+      });
+      const csv  = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type:'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = `incidents_${Date.now()}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
