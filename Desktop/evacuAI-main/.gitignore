@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+
+# Environment variables
+.env
+
+# Model files (optional if large)
+*.pt
+*.pth
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code settings (optional)
+.vscode/
+
+# Logs
+*.log
+
+# Temp Alert Screenshots
+alert_*.jpg
+
+# Backups
+# *.backup

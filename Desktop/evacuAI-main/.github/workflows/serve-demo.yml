@@ -1,0 +1,62 @@
+name: "Temporary 2-Hour Demo Server"
+
+on: 
+  workflow_dispatch: # Allows you to trigger this manually from the GitHub UI button!
+
+jobs:
+  run-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python Runtime
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install System UI Packages (OpenCV)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libglib2.0-0 ffmpeg
+
+      - name: Install Application Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Inject Real Telegram Secrets
+        run: |
+          echo 'TELEGRAM_BOT_TOKEN="8681803969:AAFk0ArfZbkBAsnfMGfpzNt6YnhusA6z8gw"' > .env
+          echo 'TELEGRAM_CHAT_ID="1059925191"' >> .env
+
+      - name: Install Cloudflare Tunnel for Public Link Output
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
+
+      - name: Spin up Cloudflare URL and Server Loop 🚀
+        run: |
+          # Start the Python app in the background natively on port 5000
+          python app.py &
+          
+          # Wait 10 seconds to ensure the Flask app woke up
+          sleep 10
+          
+          echo "=========================================================="
+          echo "🌐 WAITING FOR PUBLIC CLOUDFLARE URL GENERATION...        "
+          echo "=========================================================="
+          
+          # Launch Cloudflare tunnel mapped securely to port 5000
+          cloudflared tunnel --url http://127.0.0.1:5000 > cloudflare_output.log 2>&1 &
+          sleep 5
+          
+          # Extract and print the beautiful URL so you can click it!
+          grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' cloudflare_output.log
+          
+          echo "=========================================================="
+          echo "✅ SERVER IS LIVE! Click the link above to view the Dashboard!"
+          echo "⚠️ This GitHub Action will self-destruct violently in 5 Hours."
+          echo "=========================================================="
+          
+          # Keep the Action forcibly running for 5 hours (18000 seconds) before letting it die
+          sleep 18000
